@@ -1,0 +1,11 @@
+log:
+  level: INFO
+  dir: logs
+
+plugins:
+  timeout: 300
+  retries: 2
+  concurrency: 10
+
+scanner:
+  {}
