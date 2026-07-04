@@ -8,4 +8,10 @@ plugins:
   concurrency: 10
 
 scanner:
-  {}
+  http_concurrency: 20
+  http_timeout: 15
+  port_scan_timeout: 600
+  tech_detect_timeout: 30
+  stage_timeout: 900
+  retry_delay: 1.0
+  max_retries: 2
