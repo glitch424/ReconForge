@@ -80,7 +80,6 @@ async def test_run(mock_subprocess: MagicMock, naabu: NaabuPlugin) -> None:
         b"example.com:22\nexample.com:80\nexample.com:443\n",
         b"",
     )
-    await naabu.run("example.com")
-    results = naabu.collect_results()
+    results = await naabu.run("example.com")
     assert len(results) == 3
     assert {r["port"] for r in results} == {22, 80, 443}

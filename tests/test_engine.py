@@ -26,9 +26,9 @@ class StubPlugin(BasePlugin):
     async def initialize(self) -> None:
         pass
 
-    async def run(self, target: str) -> None:
+    async def run(self, target: str) -> list[Dict[str, Any]]:
         self._ran_targets.append(target)
-        self.results.append({"url": target, "status_code": 200})
+        return [{"url": target, "status_code": 200}]
 
     async def cleanup(self) -> None:
         pass
@@ -43,10 +43,11 @@ class SlowPlugin(BasePlugin):
     async def initialize(self) -> None:
         pass
 
-    async def run(self, target: str) -> None:
+    async def run(self, target: str) -> list[Dict[str, Any]]:
         import asyncio
 
         await asyncio.sleep(100)
+        return []
 
     async def cleanup(self) -> None:
         pass
@@ -93,7 +94,6 @@ async def test_run_stage_safe_handles_error(engine: ScannerEngine) -> None:
     """Test that run_stage_safe catches exceptions and returns empty list."""
     plugin = MagicMock(spec=BasePlugin)
     plugin.run = AsyncMock(side_effect=RuntimeError("boom"))
-    plugin.collect_results = MagicMock(return_value=[])
 
     with patch("async_recon.scanner.engine.Progress"):
         results = await engine.run_stage_safe("failing", plugin, ["http://x.com"])

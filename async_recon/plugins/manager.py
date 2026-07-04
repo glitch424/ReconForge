@@ -42,13 +42,21 @@ class PluginManager:
             # We assume all currently loaded plugins are passive for this milestone
             tasks.append(asyncio.create_task(plugin.run(target)))
 
-        await asyncio.gather(*tasks, return_exceptions=True)
+        gather_results = await asyncio.gather(*tasks, return_exceptions=True)
 
         all_results = []
-        for plugin in self.active_plugins:
-            results = plugin.collect_results()
-            all_results.extend(results)
-            logger.debug(f"Plugin '{plugin.name}' found {len(results)} results.")
+        for plugin, result in zip(self.active_plugins, gather_results):
+            if isinstance(result, Exception):
+                logger.error(
+                    f"Plugin '{plugin.name}' encountered an unexpected error: {result}"
+                )
+            elif isinstance(result, list):
+                all_results.extend(result)
+                logger.debug(f"Plugin '{plugin.name}' found {len(result)} results.")
+            else:
+                logger.warning(
+                    f"Plugin '{plugin.name}' returned an unexpected type: {type(result)}"
+                )
 
         return all_results
 

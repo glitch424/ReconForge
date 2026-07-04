@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 
 class BasePlugin(ABC):
@@ -7,7 +7,6 @@ class BasePlugin(ABC):
 
     def __init__(self, name: str) -> None:
         self.name = name
-        self.results: list[Dict[str, Any]] = []
 
     @abstractmethod
     async def initialize(self) -> None:
@@ -15,15 +14,11 @@ class BasePlugin(ABC):
         pass
 
     @abstractmethod
-    async def run(self, target: str) -> None:
-        """Execute the plugin against the target."""
+    async def run(self, target: str) -> List[Dict[str, Any]]:
+        """Execute the plugin against the target and return results."""
         pass
 
     @abstractmethod
     async def cleanup(self) -> None:
         """Clean up resources after execution."""
         pass
-
-    def collect_results(self) -> list[Dict[str, Any]]:
-        """Return the collected results."""
-        return self.results

@@ -36,17 +36,19 @@ class NaabuPlugin(BasePlugin):
             logger.warning("naabu binary not found in PATH. Plugin will be disabled.")
             raise
 
-    async def run(self, target: str) -> None:
+    async def run(self, target: str) -> List[Dict[str, Any]]:
         """Run naabu against a single target domain/IP."""
         logger.info(f"Running naabu port scan against {target}")
+        results: List[Dict[str, Any]] = []
         try:
             stdout = await self._execute(target)
             parsed = self._parse_output(stdout, target)
-            self.results.extend(parsed)
+            results.extend(parsed)
         except asyncio.TimeoutError:
             logger.error(f"naabu timed out after {self.timeout}s for {target}")
         except Exception as e:
             logger.error(f"Error running naabu against {target}: {e}")
+        return results
 
     async def _execute(self, target: str) -> str:
         """Shell out to naabu and return raw stdout."""

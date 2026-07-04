@@ -27,27 +27,24 @@ TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.IGNORECASE | re.DOTALL)
 class HttpProber(BasePlugin):
     """Probes HTTP/HTTPS endpoints and collects response metadata."""
 
-    def __init__(self, timeout: int = 15, concurrency: int = 20) -> None:
+    def __init__(self, timeout: int = 15) -> None:
         super().__init__("http_prober")
         self.timeout = timeout
-        self._semaphore = asyncio.Semaphore(concurrency)
 
     async def initialize(self) -> None:
         """No external binary required — pure Python plugin."""
         logger.info("HttpProber initialized (aiohttp-based, no external binary).")
 
-    async def run(self, target: str) -> None:
+    async def run(self, target: str) -> List[Dict[str, Any]]:
         """Probe a single URL target (e.g. 'https://example.com:443')."""
-        async with self._semaphore:
-            await self._probe_url(target)
+        results: List[Dict[str, Any]] = []
+        result = await self._probe_url(target)
+        if result:
+            results.append(result)
+        return results
 
-    async def run_batch(self, urls: List[str]) -> None:
-        """Probe multiple URLs concurrently, respecting the semaphore."""
-        tasks = [asyncio.create_task(self.run(url)) for url in urls]
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def _probe_url(self, url: str) -> None:
-        """Execute a single HTTP probe and normalize the result."""
+    async def _probe_url(self, url: str) -> Dict[str, Any] | None:
+        """Execute a single HTTP probe and return the normalized result."""
         try:
             client_timeout = aiohttp.ClientTimeout(total=self.timeout)
             connector = aiohttp.TCPConnector(ssl=False)
@@ -65,7 +62,7 @@ class HttpProber(BasePlugin):
                         tls_info = await self._collect_tls_info(url)
                         result.update(tls_info)
 
-                    self.results.append(result)
+                    return result
 
         except asyncio.TimeoutError:
             logger.warning(f"Timeout probing {url}")
@@ -73,6 +70,7 @@ class HttpProber(BasePlugin):
             logger.warning(f"HTTP error probing {url}: {e}")
         except Exception as e:
             logger.error(f"Unexpected error probing {url}: {e}")
+        return None
 
     def _normalize_response(
         self,
@@ -118,6 +116,9 @@ class HttpProber(BasePlugin):
             port = parsed.port or 443
 
             ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(host, port, ssl=ctx),
                 timeout=self.timeout,

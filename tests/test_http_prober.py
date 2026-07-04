@@ -30,7 +30,7 @@ def _make_mock_response(
 
 @pytest.fixture
 def prober() -> HttpProber:
-    return HttpProber(timeout=5, concurrency=5)
+    return HttpProber(timeout=5)
 
 
 @pytest.mark.asyncio
@@ -90,23 +90,21 @@ async def test_probe_url_success(prober: HttpProber) -> None:
     mock_session.get = MagicMock(return_value=mock_ctx)
 
     with patch("aiohttp.ClientSession", return_value=mock_session):
-        await prober._probe_url("http://example.com")
+        result = await prober._probe_url("http://example.com")
 
-    results = prober.collect_results()
-    assert len(results) == 1
-    assert results[0]["status_code"] == 200
-    assert results[0]["title"] == "Test Page"
+    assert result is not None
+    assert result["status_code"] == 200
+    assert result["title"] == "Test Page"
 
 
 @pytest.mark.asyncio
 async def test_probe_url_timeout(prober: HttpProber) -> None:
     """Test that timeouts are handled gracefully."""
     with patch("aiohttp.ClientSession", side_effect=Exception("timeout")):
-        await prober._probe_url("http://timeout.example.com")
+        result = await prober._probe_url("http://timeout.example.com")
 
     # Should not crash, should log error
-    results = prober.collect_results()
-    assert len(results) == 0
+    assert result is None
 
 
 @pytest.mark.asyncio

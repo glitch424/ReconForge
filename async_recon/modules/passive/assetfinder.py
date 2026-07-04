@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Any, Dict, List
 from async_recon.plugins.base import BasePlugin
 
 logger = logging.getLogger(__name__)
@@ -28,9 +29,10 @@ class AssetfinderPlugin(BasePlugin):
             )
             raise
 
-    async def run(self, target: str) -> None:
+    async def run(self, target: str) -> List[Dict[str, Any]]:
         """Run assetfinder against the target."""
         logger.info(f"Running assetfinder against {target}")
+        results: List[Dict[str, Any]] = []
         try:
             process = await asyncio.create_subprocess_exec(
                 "assetfinder",
@@ -54,7 +56,7 @@ class AssetfinderPlugin(BasePlugin):
                 for line in lines:
                     subdomain = line.strip()
                     if subdomain and subdomain.endswith(target):
-                        self.results.append(
+                        results.append(
                             {
                                 "target": target,
                                 "subdomain": subdomain,
@@ -64,6 +66,7 @@ class AssetfinderPlugin(BasePlugin):
 
         except Exception as e:
             logger.error(f"Error running assetfinder: {e}")
+        return results
 
     async def cleanup(self) -> None:
         pass

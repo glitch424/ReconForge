@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from typing import Any, Dict, List
 from async_recon.plugins.base import BasePlugin
 
 logger = logging.getLogger(__name__)
@@ -29,9 +30,10 @@ class SubfinderPlugin(BasePlugin):
             )
             raise
 
-    async def run(self, target: str) -> None:
+    async def run(self, target: str) -> List[Dict[str, Any]]:
         """Run subfinder against the target."""
         logger.info(f"Running subfinder against {target}")
+        results: List[Dict[str, Any]] = []
         try:
             # -silent: only output domains, -d: domain to find subdomains for
             process = await asyncio.create_subprocess_exec(
@@ -50,14 +52,14 @@ class SubfinderPlugin(BasePlugin):
                 )
                 if stderr:
                     logger.error(f"subfinder stderr: {stderr.decode().strip()}")
-                return
+                return results
 
             if stdout:
                 lines = stdout.decode().splitlines()
                 for line in lines:
                     subdomain = line.strip()
                     if subdomain:
-                        self.results.append(
+                        results.append(
                             {
                                 "target": target,
                                 "subdomain": subdomain,
@@ -67,6 +69,7 @@ class SubfinderPlugin(BasePlugin):
 
         except Exception as e:
             logger.error(f"Error running subfinder: {e}")
+        return results
 
     async def cleanup(self) -> None:
         pass

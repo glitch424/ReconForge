@@ -27,8 +27,7 @@ async def test_subfinder_plugin(mock_subprocess: MagicMock) -> None:
     )
     plugin = SubfinderPlugin()
     await plugin.initialize()
-    await plugin.run("example.com")
-    results = plugin.collect_results()
+    results = await plugin.run("example.com")
     assert len(results) == 2
     assert results[0]["subdomain"] == "sub1.example.com"
 
@@ -41,8 +40,7 @@ async def test_assetfinder_plugin(mock_subprocess: MagicMock) -> None:
     )
     plugin = AssetfinderPlugin()
     await plugin.initialize()
-    await plugin.run("example.com")
-    results = plugin.collect_results()
+    results = await plugin.run("example.com")
     assert len(results) == 1
     assert results[0]["subdomain"] == "api.example.com"
 
@@ -52,8 +50,7 @@ async def test_amass_plugin(mock_subprocess: MagicMock) -> None:
     mock_subprocess.return_value.communicate.return_value = (b"dev.example.com\n", b"")
     plugin = AmassPlugin()
     await plugin.initialize()
-    await plugin.run("example.com")
-    results = plugin.collect_results()
+    results = await plugin.run("example.com")
     assert len(results) == 1
     assert results[0]["subdomain"] == "dev.example.com"
 

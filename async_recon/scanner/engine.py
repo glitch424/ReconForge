@@ -60,13 +60,13 @@ class ScannerEngine:
             f"(timeout={effective_timeout}s)"
         )
 
+        results: List[Dict[str, Any]] = []
         try:
             async with asyncio.timeout(effective_timeout):
-                await self._execute_with_progress(stage_name, plugin, targets)
+                results = await self._execute_with_progress(stage_name, plugin, targets)
         except TimeoutError:
             logger.error(f"Stage '{stage_name}' timed out after {effective_timeout}s")
 
-        results = plugin.collect_results()
         logger.info(f"Stage '{stage_name}' completed with {len(results)} results.")
         return results
 
@@ -167,8 +167,10 @@ class ScannerEngine:
         stage_name: str,
         plugin: BasePlugin,
         targets: List[str],
-    ) -> None:
+    ) -> List[Dict[str, Any]]:
         """Run a plugin across targets with a Rich progress bar."""
+        all_results: List[Dict[str, Any]] = []
+
         with Progress(
             SpinnerColumn(),
             TextColumn("[bold blue]{task.description}"),
@@ -178,10 +180,10 @@ class ScannerEngine:
         ) as progress:
             task_id: TaskID = progress.add_task(stage_name, total=len(targets))
 
-            async def _run_one(t: str) -> None:
+            async def _run_one(t: str) -> List[Dict[str, Any]]:
                 async with self._semaphore:
                     try:
-                        await asyncio.wait_for(
+                        return await asyncio.wait_for(
                             plugin.run(t),
                             timeout=self.settings.http_timeout,
                         )
@@ -193,6 +195,19 @@ class ScannerEngine:
                         logger.warning(f"Error in '{stage_name}' for target {t}: {e}")
                     finally:
                         progress.advance(task_id)
+                return []
 
             tasks = [asyncio.create_task(_run_one(t)) for t in targets]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            gather_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            for result in gather_results:
+                if isinstance(result, Exception):
+                    logger.error(
+                        f"Target in stage '{stage_name}' failed with unexpected error: {result}"
+                    )
+                elif isinstance(result, list):
+                    all_results.extend(result)
+                else:
+                    logger.warning(f"Plugin returned unexpected type: {type(result)}")
+
+        return all_results

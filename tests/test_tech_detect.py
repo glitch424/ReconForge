@@ -12,7 +12,7 @@ from async_recon.modules.active.tech_detect import TechDetector
 
 @pytest.fixture
 def detector() -> TechDetector:
-    return TechDetector(timeout=5, concurrency=5)
+    return TechDetector(timeout=5)
 
 
 def test_match_signatures_nginx(detector: TechDetector) -> None:
@@ -88,9 +88,8 @@ async def test_detect_with_mock(detector: TechDetector) -> None:
     with patch.object(
         detector, "_fetch", new=AsyncMock(return_value=(mock_headers, mock_body))
     ):
-        await detector._detect("https://example.com")
+        results = await detector._detect("https://example.com")
 
-    results = detector.collect_results()
     names = [r["name"] for r in results]
     assert "Nginx" in names
     assert "WordPress" in names

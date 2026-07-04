@@ -9,7 +9,6 @@ Detection logic, signature matching, and normalization are separated
 for testability.
 """
 
-import asyncio
 import logging
 import re
 from typing import Any, Dict, List
@@ -120,40 +119,32 @@ class TechDetector(BasePlugin):
     def __init__(
         self,
         timeout: int = 30,
-        concurrency: int = 20,
         signatures: List[Dict[str, Any]] | None = None,
     ) -> None:
         super().__init__("tech_detector")
         self.timeout = timeout
-        self._semaphore = asyncio.Semaphore(concurrency)
         self.signatures = signatures if signatures is not None else TECH_SIGNATURES
 
     async def initialize(self) -> None:
         """No external binary required — pure Python plugin."""
         logger.info(f"TechDetector initialized with {len(self.signatures)} signatures.")
 
-    async def run(self, target: str) -> None:
+    async def run(self, target: str) -> List[Dict[str, Any]]:
         """Detect technologies on a single URL."""
-        async with self._semaphore:
-            await self._detect(target)
+        return await self._detect(target)
 
-    async def run_batch(self, urls: List[str]) -> None:
-        """Detect technologies on multiple URLs concurrently."""
-        tasks = [asyncio.create_task(self.run(url)) for url in urls]
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-    async def _detect(self, url: str) -> None:
+    async def _detect(self, url: str) -> List[Dict[str, Any]]:
         """Fetch URL and match against signature database."""
         try:
             headers_dict, body = await self._fetch(url)
-            matches = self._match_signatures(url, headers_dict, body)
-            self.results.extend(matches)
+            return self._match_signatures(url, headers_dict, body)
         except httpx.TimeoutException:
             logger.warning(f"Timeout detecting technologies on {url}")
         except httpx.HTTPError as e:
             logger.warning(f"HTTP error detecting technologies on {url}: {e}")
         except Exception as e:
             logger.error(f"Unexpected error detecting technologies on {url}: {e}")
+        return []
 
     async def _fetch(self, url: str) -> tuple[Dict[str, str], str]:
         """Fetch URL and return (headers_dict, body) for matching."""
