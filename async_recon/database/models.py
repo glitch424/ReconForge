@@ -76,3 +76,20 @@ class TechRecord(BaseModel):
     name: str
     version: str = ""
     confidence: int = 100
+
+
+class ScreenshotRecord(BaseModel):
+    """Screenshot metadata captured by gowitness for a URL.
+
+    The actual image file is stored on disk; this record persists the
+    filesystem path so reports can reference it without re-scanning.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: Optional[int] = None
+    subdomain_id: int
+    url: str
+    file_path: str  # Absolute or workspace-relative path to PNG
+    width: int = 1280
+    height: int = 800

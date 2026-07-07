@@ -9,7 +9,14 @@ from typing import List, Optional
 
 import aiosqlite
 
-from async_recon.database.models import HttpRecord, PortRecord, SubdomainRecord
+from async_recon.database.models import (
+    DNSRecord,
+    HttpRecord,
+    PortRecord,
+    ScreenshotRecord,
+    SubdomainRecord,
+    TechRecord,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +109,17 @@ class DatabaseStore:
                 version TEXT NOT NULL DEFAULT '',
                 confidence INTEGER NOT NULL DEFAULT 100,
                 UNIQUE(subdomain_id, category, name),
+                FOREIGN KEY(subdomain_id) REFERENCES subdomains(id) ON DELETE CASCADE
+            );
+
+            CREATE TABLE IF NOT EXISTS screenshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                subdomain_id INTEGER NOT NULL,
+                url TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                width INTEGER NOT NULL DEFAULT 1280,
+                height INTEGER NOT NULL DEFAULT 800,
+                UNIQUE(subdomain_id, url),
                 FOREIGN KEY(subdomain_id) REFERENCES subdomains(id) ON DELETE CASCADE
             );
         """)
@@ -338,3 +356,90 @@ class DatabaseStore:
             (subdomain_id, category, name, version, confidence),
         )
         await conn.commit()
+
+    # ------------------------------------------------------------------
+    # Screenshots
+    # ------------------------------------------------------------------
+
+    async def add_screenshot(
+        self,
+        subdomain_id: int,
+        url: str,
+        file_path: str,
+        width: int = 1280,
+        height: int = 800,
+    ) -> None:
+        """Insert or replace a screenshot metadata record."""
+        conn = self._require_conn()
+
+        await conn.execute(
+            "INSERT OR REPLACE INTO screenshots "
+            "(subdomain_id, url, file_path, width, height) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (subdomain_id, url, file_path, width, height),
+        )
+        await conn.commit()
+
+    async def get_screenshots(self, subdomain_id: int) -> List[ScreenshotRecord]:
+        """Return all screenshot records for a subdomain."""
+        conn = self._require_conn()
+
+        async with conn.execute(
+            "SELECT id, subdomain_id, url, file_path, width, height "
+            "FROM screenshots WHERE subdomain_id = ?",
+            (subdomain_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                ScreenshotRecord(
+                    id=row[0],
+                    subdomain_id=row[1],
+                    url=row[2],
+                    file_path=row[3],
+                    width=row[4],
+                    height=row[5],
+                )
+                for row in rows
+            ]
+
+    async def get_tech_records(self, subdomain_id: int) -> List[TechRecord]:
+        """Return all technology records for a subdomain."""
+        conn = self._require_conn()
+
+        async with conn.execute(
+            "SELECT id, subdomain_id, category, name, version, confidence "
+            "FROM tech_records WHERE subdomain_id = ?",
+            (subdomain_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                TechRecord(
+                    id=row[0],
+                    subdomain_id=row[1],
+                    category=row[2],
+                    name=row[3],
+                    version=row[4],
+                    confidence=row[5],
+                )
+                for row in rows
+            ]
+
+    async def get_dns_records(self, subdomain_id: int) -> List[DNSRecord]:
+        """Return all DNS records for a subdomain."""
+        conn = self._require_conn()
+
+        async with conn.execute(
+            "SELECT id, subdomain_id, record_type, value "
+            "FROM dns_records WHERE subdomain_id = ?",
+            (subdomain_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                DNSRecord(
+                    id=row[0],
+                    subdomain_id=row[1],
+                    record_type=row[2],
+                    value=row[3],
+                )
+                for row in rows
+            ]
