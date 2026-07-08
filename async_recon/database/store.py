@@ -217,6 +217,23 @@ class DatabaseStore:
         )
         await conn.commit()
 
+    async def get_all_dns_records_by_target(self, target: str) -> List[DNSRecord]:
+        """Return all DNS records for a target."""
+        conn = self._require_conn()
+        async with conn.execute(
+            "SELECT d.id, d.subdomain_id, d.record_type, d.value "
+            "FROM dns_records d JOIN subdomains s ON d.subdomain_id = s.id "
+            "WHERE s.target = ?",
+            (target,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                DNSRecord(
+                    id=row[0], subdomain_id=row[1], record_type=row[2], value=row[3]
+                )
+                for row in rows
+            ]
+
     # ------------------------------------------------------------------
     # Ports
     # ------------------------------------------------------------------
@@ -246,6 +263,27 @@ class DatabaseStore:
             "SELECT id, subdomain_id, port, protocol, service "
             "FROM ports WHERE subdomain_id = ?",
             (subdomain_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                PortRecord(
+                    id=row[0],
+                    subdomain_id=row[1],
+                    port=row[2],
+                    protocol=row[3],
+                    service=row[4],
+                )
+                for row in rows
+            ]
+
+    async def get_all_ports_by_target(self, target: str) -> List[PortRecord]:
+        """Return all ports for a target."""
+        conn = self._require_conn()
+        async with conn.execute(
+            "SELECT p.id, p.subdomain_id, p.port, p.protocol, p.service "
+            "FROM ports p JOIN subdomains s ON p.subdomain_id = s.id "
+            "WHERE s.target = ?",
+            (target,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -313,6 +351,37 @@ class DatabaseStore:
             "tls_issuer, tls_subject, tls_not_after "
             "FROM http_records WHERE subdomain_id = ?",
             (subdomain_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                HttpRecord(
+                    id=row[0],
+                    subdomain_id=row[1],
+                    port=row[2],
+                    url=row[3],
+                    status_code=row[4],
+                    title=row[5],
+                    content_length=row[6],
+                    redirect_url=row[7],
+                    server=row[8],
+                    content_type=row[9],
+                    tls_issuer=row[10],
+                    tls_subject=row[11],
+                    tls_not_after=row[12],
+                )
+                for row in rows
+            ]
+
+    async def get_all_http_records_by_target(self, target: str) -> List[HttpRecord]:
+        """Return all HTTP records for a target."""
+        conn = self._require_conn()
+        async with conn.execute(
+            "SELECT h.id, h.subdomain_id, h.port, h.url, h.status_code, h.title, "
+            "h.content_length, h.redirect_url, h.server, h.content_type, "
+            "h.tls_issuer, h.tls_subject, h.tls_not_after "
+            "FROM http_records h JOIN subdomains s ON h.subdomain_id = s.id "
+            "WHERE s.target = ?",
+            (target,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [
@@ -402,6 +471,30 @@ class DatabaseStore:
                 for row in rows
             ]
 
+    async def get_all_screenshots_by_target(
+        self, target: str
+    ) -> List[ScreenshotRecord]:
+        """Return all screenshot records for a target."""
+        conn = self._require_conn()
+        async with conn.execute(
+            "SELECT sc.id, sc.subdomain_id, sc.url, sc.file_path, sc.width, sc.height "
+            "FROM screenshots sc JOIN subdomains s ON sc.subdomain_id = s.id "
+            "WHERE s.target = ?",
+            (target,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                ScreenshotRecord(
+                    id=row[0],
+                    subdomain_id=row[1],
+                    url=row[2],
+                    file_path=row[3],
+                    width=row[4],
+                    height=row[5],
+                )
+                for row in rows
+            ]
+
     async def get_tech_records(self, subdomain_id: int) -> List[TechRecord]:
         """Return all technology records for a subdomain."""
         conn = self._require_conn()
@@ -410,6 +503,28 @@ class DatabaseStore:
             "SELECT id, subdomain_id, category, name, version, confidence "
             "FROM tech_records WHERE subdomain_id = ?",
             (subdomain_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                TechRecord(
+                    id=row[0],
+                    subdomain_id=row[1],
+                    category=row[2],
+                    name=row[3],
+                    version=row[4],
+                    confidence=row[5],
+                )
+                for row in rows
+            ]
+
+    async def get_all_tech_records_by_target(self, target: str) -> List[TechRecord]:
+        """Return all technology records for a target."""
+        conn = self._require_conn()
+        async with conn.execute(
+            "SELECT t.id, t.subdomain_id, t.category, t.name, t.version, t.confidence "
+            "FROM tech_records t JOIN subdomains s ON t.subdomain_id = s.id "
+            "WHERE s.target = ?",
+            (target,),
         ) as cursor:
             rows = await cursor.fetchall()
             return [
