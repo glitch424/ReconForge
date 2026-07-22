@@ -1,6 +1,7 @@
 """Tests for the Gowitness plugin."""
 
 from collections.abc import Generator
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,8 +20,8 @@ def mock_subprocess() -> Generator[MagicMock, None, None]:
 
 
 @pytest.fixture
-def gowitness() -> GowitnessPlugin:
-    return GowitnessPlugin(output_dir="/tmp/screenshots", timeout=5)
+def gowitness(tmp_path: Path) -> GowitnessPlugin:
+    return GowitnessPlugin(output_dir=str(tmp_path / "screenshots"), timeout=5)
 
 
 @pytest.mark.asyncio
@@ -29,7 +30,9 @@ async def test_initialize(
 ) -> None:
     """Test that initialize checks for the gowitness binary."""
     await gowitness.initialize()
-    mock_subprocess.assert_called_with("gowitness", "version", stdout=-1, stderr=-1)
+    mock_subprocess.assert_called_with(
+        "gowitness", "version", stdout=-1, stderr=-1
+    )
 
 
 @pytest.mark.asyncio
@@ -40,57 +43,89 @@ async def test_initialize_missing_binary(gowitness: GowitnessPlugin) -> None:
             await gowitness.initialize()
 
 
-def test_derive_output_path(gowitness: GowitnessPlugin) -> None:
-    """Test URL to filename derivation matches gowitness behavior."""
-    import sys
+@pytest.mark.asyncio
+async def test_execute_success(
+    mock_subprocess: MagicMock, gowitness: GowitnessPlugin, tmp_path: Path
+) -> None:
+    """Test _execute runs the correct command and detects the new screenshot."""
+    url = "https://example.com"
+    output_dir = tmp_path / "screenshots"
 
-    if sys.platform == "win32":
-        expected = "\\tmp\\screenshots\\https_example.com.png"
-    else:
-        expected = "/tmp/screenshots/https_example.com.png"
+    # We want the mocked process.communicate() to simulate creating a screenshot file
+    async def side_effect_communicate(*args, **kwargs):
+        output_dir.mkdir(parents=True, exist_ok=True)
+        # Simulate gowitness creating a screenshot
+        (output_dir / "example_com.png").touch()
+        return (b"", b"")
 
-    path = gowitness._derive_output_path("https://example.com/")
+    mock_subprocess.return_value.communicate.side_effect = side_effect_communicate
 
-    # Path normalisation for cross-platform tests
-    assert path.replace("\\", "/") == expected.replace("\\", "/")
+    path = await gowitness._execute(url)
 
-    path2 = gowitness._derive_output_path("http://sub.example.com:8080")
-    if sys.platform == "win32":
-        expected2 = "\\tmp\\screenshots\\http_sub.example.com:8080.png"
-    else:
-        expected2 = "/tmp/screenshots/http_sub.example.com:8080.png"
+    mock_subprocess.assert_called_once_with(
+        "gowitness",
+        "scan",
+        "single",
+        "-u",
+        url,
+        "--screenshot-path",
+        str(output_dir),
+        "--screenshot-format",
+        "png",
+        "--write-none",
+        stdout=-1,
+        stderr=-1,
+    )
 
-    assert path2.replace("\\", "/") == expected2.replace("\\", "/")
+    assert path == str((output_dir / "example_com.png").resolve())
 
 
 @pytest.mark.asyncio
-async def test_execute(mock_subprocess: MagicMock, gowitness: GowitnessPlugin) -> None:
-    """Test _execute runs the command and returns the expected path."""
-    with patch("pathlib.Path.mkdir"):
-        path = await gowitness._execute("https://example.com")
-        assert "https_example.com.png" in path
+async def test_execute_no_file_created(
+    mock_subprocess: MagicMock, gowitness: GowitnessPlugin, tmp_path: Path
+) -> None:
+    """Test _execute returns empty string if no file is created."""
+    url = "https://example.com"
+    path = await gowitness._execute(url)
+    assert path == ""
 
 
 @pytest.mark.asyncio
-async def test_run_success(gowitness: GowitnessPlugin) -> None:
+async def test_execute_subprocess_failure(
+    mock_subprocess: MagicMock, gowitness: GowitnessPlugin, tmp_path: Path
+) -> None:
+    """Test _execute handles non-zero exit codes."""
+    url = "https://example.com"
+    mock_subprocess.return_value.returncode = 1
+    mock_subprocess.return_value.communicate.return_value = (b"", b"error")
+
+    path = await gowitness._execute(url)
+    assert path == ""
+
+
+@pytest.mark.asyncio
+async def test_run_success(gowitness: GowitnessPlugin, tmp_path: Path) -> None:
     """Test successful run returns a valid result dict."""
-    with patch.object(gowitness, "_execute", return_value="/tmp/test.png") as mock_exec:
-        with patch("pathlib.Path.exists", return_value=True):
-            results = await gowitness.run("https://example.com")
+    # Mock _execute to return a valid file path
+    dummy_file = tmp_path / "dummy.png"
+    dummy_file.touch()
+
+    with patch.object(gowitness, "_execute", return_value=str(dummy_file)) as mock_exec:
+        results = await gowitness.run("https://example.com")
 
     mock_exec.assert_called_once_with("https://example.com")
     assert len(results) == 1
     assert results[0]["url"] == "https://example.com"
-    assert results[0]["file_path"] == "/tmp/test.png"
+    assert results[0]["file_path"] == str(dummy_file)
     assert results[0]["source"] == "gowitness"
 
 
 @pytest.mark.asyncio
 async def test_run_no_file(gowitness: GowitnessPlugin) -> None:
-    """Test run returns empty list when file is not created."""
-    with patch.object(gowitness, "_execute", return_value="/tmp/test.png"):
-        with patch("pathlib.Path.exists", return_value=False):
-            results = await gowitness.run("https://example.com")
+    """Test run returns empty list when file is not created or doesn't exist."""
+    # _execute returns empty string when no file found
+    with patch.object(gowitness, "_execute", return_value=""):
+        results = await gowitness.run("https://example.com")
 
     assert len(results) == 0
 
