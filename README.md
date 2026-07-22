@@ -1,8 +1,12 @@
-# ReconForge
+<p align="center">
+  <img src="docs/images/reconforge-banner.png" alt="ReconForge" width="700">
+</p>
 
-![ReconForge Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Python Version](https://img.shields.io/badge/python-3.12%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue" alt="ReconForge Version">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python Version">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+</p>
 
 ReconForge is a modular, high-performance, asynchronous Python reconnaissance framework for Bug Bounty Hunters and Security Engineers.
 
@@ -22,29 +26,29 @@ Many recon pipelines consist of brittle bash scripts chaining together various G
 
 ```mermaid
 graph TD
-    UI[CLI Interface] --> ORCH[Orchestrator]
-    ORCH --> DB[(SQLite Database)]
+    CLI["CLI Interface"] --> ORCH["Orchestrator"]
     
-    subgraph "Passive Stage"
-        ORCH --> SUB[Subfinder Plugin]
-        ORCH --> ASS[Assetfinder Plugin]
-        ORCH --> AMA[Amass Plugin]
+    subgraph "Data Acquisition"
+        ORCH --> PASS["Passive Recon"]
+        PASS -.-> SUB["Subfinder"]
+        PASS -.-> ASS["Assetfinder"]
+        PASS -.-> AMA["Amass"]
+        
+        ORCH --> DNS["DNS Resolution (aiodns)"]
+        ORCH --> PORT["Port Scanning (naabu)"]
+        ORCH --> HTTP["HTTP Probing (aiohttp)"]
+        ORCH --> TECH["Technology Detection (httpx)"]
+        ORCH --> SHOT["Screenshot Capture (gowitness)"]
     end
     
-    subgraph "Active Stage"
-        ORCH --> DNS[aiodns Resolver]
-        ORCH --> NAA[Naabu Plugin]
-        ORCH --> HTT[HTTP Prober (aiohttp)]
-        ORCH --> TEC[Tech Detector (httpx)]
-        ORCH --> GOW[Gowitness Plugin]
-    end
+    ORCH --> DB[("SQLite Database")]
     
-    ORCH --> COR[Asset Correlator]
-    COR --> DB
-    COR --> MOD[Normalized Asset Model]
-    MOD --> REP[Report Exporter]
-    REP --> HTM[HTML Report]
-    REP --> JSO[JSON Report]
+    ORCH --> CORR["Asset Correlation"]
+    DB --> CORR
+    CORR --> MODEL["Normalized Asset Model"]
+    MODEL --> EXP["Report Exporter"]
+    EXP --> HTML["HTML Report"]
+    EXP --> JSON["JSON Report"]
 ```
 
 ## Installation
