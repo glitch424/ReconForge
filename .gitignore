@@ -27,3 +27,5 @@ build/
 logs/
 *.sqlite3
 *.db
+reports/
+screenshots/
