@@ -11,6 +11,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 
+from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
 
 from async_recon.config.settings import ScannerSettings
@@ -18,7 +19,7 @@ from async_recon.database.store import DatabaseStore
 from async_recon.plugins.base import BasePlugin
 
 logger = logging.getLogger(__name__)
-
+console = Console()
 
 class ScannerEngine:
     """Orchestrates active recon stages with concurrency, timeouts, and retries."""
@@ -83,6 +84,26 @@ class ScannerEngine:
         except Exception as e:
             logger.error(f"Stage '{stage_name}' failed with unexpected error: {e}")
             return []
+
+    async def execute_plugin_stage(
+        self,
+        stage_name: str,
+        plugin: BasePlugin,
+        targets: List[str],
+        timeout: int | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Safely initialize, execute, and cleanup an active plugin."""
+        try:
+            await plugin.initialize()
+            return await self.run_stage_safe(stage_name, plugin, targets, timeout)
+        except FileNotFoundError:
+            console.print(f"  [yellow]⚠[/yellow] {plugin.name} not found — stage '{stage_name}' skipped")
+            return []
+        finally:
+            try:
+                await plugin.cleanup()
+            except Exception as e:
+                logger.error(f"Error during cleanup of plugin '{plugin.name}': {e}")
 
     # ------------------------------------------------------------------
     # Store helpers — persist plugin results to DB

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from async_recon.modules.passive.subfinder import SubfinderPlugin
 from async_recon.modules.passive.assetfinder import AssetfinderPlugin
 from async_recon.modules.passive.amass import AmassPlugin
-from async_recon.plugins.manager import PluginManager
+from async_recon.plugins.manager import PassivePluginManager
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ async def test_plugin_manager(mock_subprocess: MagicMock) -> None:
         b"",
     )
 
-    manager = PluginManager()
+    manager = PassivePluginManager()
     await manager.initialize_plugins()
     assert len(manager.active_plugins) == 3
 

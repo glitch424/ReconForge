@@ -11,7 +11,7 @@ from async_recon.modules.passive.amass import AmassPlugin
 logger = logging.getLogger(__name__)
 
 
-class PluginManager:
+class PassivePluginManager:
     def __init__(self) -> None:
         self.available_plugins: List[Callable[[], BasePlugin]] = [
             SubfinderPlugin,

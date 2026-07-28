@@ -52,7 +52,7 @@ async def test_execute_success(
     output_dir = tmp_path / "screenshots"
 
     # We want the mocked process.communicate() to simulate creating a screenshot file
-    async def side_effect_communicate(*args, **kwargs):
+    async def side_effect_communicate(*args: Any, **kwargs: Any) -> tuple[bytes, bytes]:
         output_dir.mkdir(parents=True, exist_ok=True)
         # Simulate gowitness creating a screenshot
         (output_dir / "example_com.png").touch()

@@ -24,7 +24,7 @@ from async_recon.modules.active.http_prober import HttpProber
 from async_recon.modules.active.naabu import NaabuPlugin
 from async_recon.modules.active.tech_detect import TechDetector
 from async_recon.modules.correlation.correlator import AssetCorrelator
-from async_recon.plugins.manager import PluginManager
+from async_recon.plugins.manager import PassivePluginManager
 from async_recon.reporting.exporter import ReportExporter
 from async_recon.scanner.dns_resolver import DNSResolver
 from async_recon.scanner.engine import ScannerEngine
@@ -114,7 +114,7 @@ async def _scan_single_target(
 
     # ── 3. Passive recon (subdomain enumeration) ────────────────────
     console.print("[dim]  Stage 1/7: Passive subdomain enumeration...[/dim]")
-    pm = PluginManager()
+    pm = PassivePluginManager()
     await pm.initialize_plugins()
 
     subdomain_results: List[Dict[str, Any]] = []
@@ -179,31 +179,21 @@ async def _scan_single_target(
 
     # ── 5. Port scanning ────────────────────────────────────────────
     console.print("[dim]  Stage 3/7: Port scanning...[/dim]")
-    try:
-        naabu = NaabuPlugin(timeout=settings.scanner.port_scan_timeout)
-        await naabu.initialize()
-        port_results = await engine.run_stage_safe(
-            "Port Scanning",
-            naabu,
-            all_subdomains,
-            timeout=settings.scanner.port_scan_timeout,
-        )
-        await engine.store_port_results(port_results, subdomain_id_map)
-        console.print(
-            f"  [green]✓[/green] Found " f"[bold]{len(port_results)}[/bold] open ports"
-        )
-    except FileNotFoundError:
-        port_results = []
-        console.print("  [yellow]⚠[/yellow] naabu not found — port scanning skipped")
-    except Exception as exc:
-        port_results = []
-        logger.error(f"Port scanning stage failed: {exc}")
-        console.print("  [yellow]⚠[/yellow] Port scanning failed — continuing")
+    naabu = NaabuPlugin(timeout=settings.scanner.port_scan_timeout)
+    port_results = await engine.execute_plugin_stage(
+        "Port Scanning",
+        naabu,
+        all_subdomains,
+        timeout=settings.scanner.port_scan_timeout,
+    )
+    await engine.store_port_results(port_results, subdomain_id_map)
+    console.print(
+        f"  [green]✓[/green] Found " f"[bold]{len(port_results)}[/bold] open ports"
+    )
 
     # ── 6. HTTP probing ─────────────────────────────────────────────
     console.print("[dim]  Stage 4/7: HTTP probing...[/dim]")
     http_prober = HttpProber(timeout=settings.scanner.http_timeout)
-    await http_prober.initialize()
 
     # Build URL list: probe both http and https for each subdomain
     url_targets: List[str] = []
@@ -214,7 +204,7 @@ async def _scan_single_target(
             url_targets.append(url)
             url_to_subdomain[url] = sub
 
-    http_results = await engine.run_stage_safe(
+    http_results = await engine.execute_plugin_stage(
         "HTTP Probing",
         http_prober,
         url_targets,
@@ -227,11 +217,10 @@ async def _scan_single_target(
     # ── 7. Technology detection ──────────────────────────────────────
     console.print("[dim]  Stage 5/7: Technology detection...[/dim]")
     tech_detector = TechDetector(timeout=settings.scanner.tech_detect_timeout)
-    await tech_detector.initialize()
 
     # Only probe URLs that returned a valid HTTP response
     live_urls = [r["url"] for r in http_results if r.get("status_code", 0) > 0]
-    tech_results = await engine.run_stage_safe(
+    tech_results = await engine.execute_plugin_stage(
         "Technology Detection",
         tech_detector,
         live_urls,
@@ -244,36 +233,29 @@ async def _scan_single_target(
 
     # ── 8. Screenshot capture ────────────────────────────────────────
     console.print("[dim]  Stage 6/7: Screenshot capture...[/dim]")
-    try:
-        gowitness = GowitnessPlugin(
-            output_dir="screenshots", timeout=settings.scanner.http_timeout
-        )
-        await gowitness.initialize()
-        screenshot_results = await engine.run_stage_safe(
-            "Screenshots",
-            gowitness,
-            live_urls,
-        )
-        # Persist screenshot metadata
-        for sr in screenshot_results:
-            url = sr.get("url", "")
-            sub = url_to_subdomain.get(url, "")
-            match_sub_id = subdomain_id_map.get(sub)
-            if match_sub_id is not None:
-                await db.add_screenshot(
-                    subdomain_id=match_sub_id,
-                    url=url,
-                    file_path=sr.get("file_path", ""),
-                )
-        console.print(
-            f"  [green]✓[/green] Captured "
-            f"[bold]{len(screenshot_results)}[/bold] screenshots"
-        )
-    except FileNotFoundError:
-        console.print("  [yellow]⚠[/yellow] gowitness not found — screenshots skipped")
-    except Exception as exc:
-        logger.error(f"Screenshot stage failed: {exc}")
-        console.print("  [yellow]⚠[/yellow] Screenshot capture failed — continuing")
+    gowitness = GowitnessPlugin(
+        output_dir="screenshots", timeout=settings.scanner.http_timeout
+    )
+    screenshot_results = await engine.execute_plugin_stage(
+        "Screenshots",
+        gowitness,
+        live_urls,
+    )
+    # Persist screenshot metadata
+    for sr in screenshot_results:
+        url = sr.get("url", "")
+        sub = url_to_subdomain.get(url, "")
+        match_sub_id = subdomain_id_map.get(sub)
+        if match_sub_id is not None:
+            await db.add_screenshot(
+                subdomain_id=match_sub_id,
+                url=url,
+                file_path=sr.get("file_path", ""),
+            )
+    console.print(
+        f"  [green]✓[/green] Captured "
+        f"[bold]{len(screenshot_results)}[/bold] screenshots"
+    )
 
     # ── 9. Correlation + Reporting ───────────────────────────────────
     console.print("[dim]  Stage 7/7: Correlation & report generation...[/dim]")
